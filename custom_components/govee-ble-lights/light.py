@@ -61,6 +61,7 @@ class GoveeBluetoothLight(LightEntity):
         self._ble_device = ble_device
         self._brightness = 255
         self._state = True
+        self._rgb_color: tuple[int, int, int] | None = None
         self._current_effect: str | None = None
         self._effect_list: list[str] | None = None
         self._effect_map: dict[str, tuple] | None = None
@@ -144,6 +145,10 @@ class GoveeBluetoothLight(LightEntity):
         return self._brightness
 
     @property
+    def rgb_color(self) -> tuple[int, int, int] | None:
+        return self._rgb_color
+
+    @property
     def is_on(self) -> bool | None:
         """Return true if light is on."""
         return self._state
@@ -215,6 +220,8 @@ class GoveeBluetoothLight(LightEntity):
                 except Exception as err:
                     _LOGGER.error("Failed to send effect %r: %s", effect, err)
 
+        self.async_write_ha_state()
+
     async def async_turn_off(self, **kwargs) -> None:
         if self._client is None:
             raise ConnectionError("This device has not been connected yet. Is it in range?")
@@ -223,6 +230,7 @@ class GoveeBluetoothLight(LightEntity):
 
         self._current_effect = EFFECT_OFF
         self._state = False
+        self.async_write_ha_state()
 
     async def try_connect(self) -> None:
         """ Tries to start a connection to the device. """
