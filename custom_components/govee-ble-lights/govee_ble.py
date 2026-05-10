@@ -37,11 +37,42 @@ class GoveeBLE:
 
     BLE_SEGMENTED_MODELS = ['H6053', 'H6072', 'H6102', 'H6199', 'H617A', 'H617C']
     BLE_PERCENT_MODELS = ['H617A', 'H617C']
+    # Models whose firmware blends warm-white LEDs proportional to min(R,G,B),
+    # which makes desaturated HomeKit colors render as washed-out / whitish.
+    # For these, strip the white component before sending so the strip shows
+    # a clean hue instead of mixing in white.
+    BLE_PURE_HUE_MODELS = ['H617A', 'H617C']
 
     BLE_KEEPALIVE_INTERVAL = 1.0
     BLE_INTERFRAME_DELAY = 0.05
     BLE_HANDLE_RETRY = 3
     BLE_TIMEOUT = 7
+
+    @staticmethod
+    def purify_color(red: int, green: int, blue: int) -> tuple[int, int, int]:
+        """
+        Strip the white-channel component from an RGB triple and rescale the
+        remaining hue to full saturation.
+
+        - Pure colors (one channel zero) pass through unchanged.
+        - Pure white (R == G == B) passes through unchanged.
+        - Pastels collapse to their dominant hue at full saturation; the user
+          dims via the separate BRIGHTNESS packet, not by muting the color.
+        """
+        w = min(red, green, blue)
+        if w == 0:
+            return red, green, blue
+        r, g, b = red - w, green - w, blue - w
+        m = max(r, g, b)
+        if m == 0:
+            # Pure white (R == G == B). Leave it alone.
+            return red, green, blue
+        scale = 255 / m
+        return (
+            min(255, int(r * scale)),
+            min(255, int(g * scale)),
+            min(255, int(b * scale)),
+        )
 
     @staticmethod
     async def send_multi_packet(client: BleakClient, protocol_type, header_array, data):

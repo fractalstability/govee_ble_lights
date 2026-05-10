@@ -58,6 +58,7 @@ class GoveeBluetoothLight(LightEntity):
         self._model = config_entry.data["model"]
         self._is_segmented = self._model in GoveeBLE.BLE_SEGMENTED_MODELS
         self._use_percent = self._model in GoveeBLE.BLE_PERCENT_MODELS
+        self._pure_hue_only = self._model in GoveeBLE.BLE_PURE_HUE_MODELS
         self._ble_device = ble_device
         self._brightness = 255
         self._state = True
@@ -173,6 +174,13 @@ class GoveeBluetoothLight(LightEntity):
 
         if ATTR_RGB_COLOR in kwargs:
             red, green, blue = kwargs.get(ATTR_RGB_COLOR)
+
+            # On models whose firmware blends warm-white into desaturated colors,
+            # strip the white component first so HomeKit pastels render as clean
+            # hues instead of muddy whites. Brightness is unaffected (separate
+            # packet above).
+            if self._pure_hue_only:
+                red, green, blue = GoveeBLE.purify_color(red, green, blue)
 
             if self._is_segmented:
                 await GoveeBLE.send_single_packet(
