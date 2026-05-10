@@ -48,6 +48,11 @@ class GoveeBLE:
     BLE_HANDLE_RETRY = 3
     BLE_TIMEOUT = 7
 
+    # Near-white deadzone for purify_color: if min/max >= this ratio, the user
+    # is picking a white-ish/tinted color and we leave it alone. Below this,
+    # they meant a saturated hue and we strip the white component.
+    BLE_PURIFY_NEAR_WHITE_RATIO = 0.7
+
     @staticmethod
     def purify_color(red: int, green: int, blue: int) -> tuple[int, int, int]:
         """
@@ -55,12 +60,18 @@ class GoveeBLE:
         remaining hue to full saturation.
 
         - Pure colors (one channel zero) pass through unchanged.
-        - Pure white (R == G == B) passes through unchanged.
-        - Pastels collapse to their dominant hue at full saturation; the user
-          dims via the separate BRIGHTNESS packet, not by muting the color.
+        - White, grays, and near-white tints pass through unchanged so the user
+          can still pick white or warm/cool whites from the color picker.
+        - Saturated pastels collapse to their dominant hue at full saturation;
+          dimming is handled by the separate BRIGHTNESS packet.
         """
         w = min(red, green, blue)
         if w == 0:
+            return red, green, blue
+        m_in = max(red, green, blue)
+        # Near-white passthrough: user picked a tint near the center of the
+        # color wheel. Don't purify - they want the soft color, not pure hue.
+        if m_in > 0 and w / m_in >= GoveeBLE.BLE_PURIFY_NEAR_WHITE_RATIO:
             return red, green, blue
         r, g, b = red - w, green - w, blue - w
         m = max(r, g, b)
